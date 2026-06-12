@@ -29,12 +29,11 @@ function processLinkedInJobsWithGemini() {
   try { ss = SpreadsheetApp.openById(SPREADSHEET_ID); } catch(err) { return; }
   var dataSheet = ss.getSheetByName(DATA_SHEET_NAME) || ss.getSheets()[0];
   
-  // Naya Column J (Gmail Source) add kiya headers me
   if (dataSheet.getLastRow() === 0) {
     dataSheet.appendRow([
       "Timestamp", "Job Title (Clickable)", "Company", "Location", 
       "Workplace Type (Remote/Hybrid)", "Employment Type", "Experience Level", 
-      "Key Skills Required", "Job Description Summary", "Gmail Source"
+      "Key Skills Required", "Job Description Summary", "Gmail Source (IST Time)"
     ]);
     dataSheet.getRange("A1:J1").setFontWeight("bold").setBackground("#e6effa");
   }
@@ -64,10 +63,15 @@ function processLinkedInJobsWithGemini() {
     var mailDate = message.getDate();
     var emailBodyHtml = message.getBody(); 
     
-    // GMAIL DEEP-LINK LOGIC: Isse har ek individual email thread ka direct web link banega
+    // FIX/UPDATE: Email ka exact time IST format me convert karna (e.g., "12-Jun-2026 06:18 AM")
+    var istFormattedTime = Utilities.formatDate(mailDate, "GMT+5:30", "dd-MMM-yyyy hh:mm a");
+    
+    // Gmail Thread Link Setup
     var threadId = targetThread.getId();
     var gmailLinkUrl = "https://mail.google.com/mail/u/0/#inbox/" + threadId;
-    var gmailFormula = '=HYPERLINK("' + gmailLinkUrl + '", "Open Email ✉️")';
+    
+    // Naya Hyperlink Formula: Ab text ki jagah IST Time dikhega jo clickable hoga
+    var gmailFormula = '=HYPERLINK("' + gmailLinkUrl + '", "' + istFormattedTime + ' ✉️")';
 
     var prompt = "Extract all job openings listed in this LinkedIn HTML email. For each job, extract the following fields:\n" +
                  "1. 'jobTitle'\n" +
@@ -108,7 +112,6 @@ function processLinkedInJobsWithGemini() {
             cleanSkills = "N/A";
           }
           
-          // Column J me gmailFormula append ho raha hai
           dataSheet.appendRow([
             mailDate, 
             cellFormula, 
@@ -119,7 +122,7 @@ function processLinkedInJobsWithGemini() {
             job.experienceLevel || "N/A",
             cleanSkills, 
             job.summary || "N/A",
-            gmailFormula // New Column J data
+            gmailFormula // Column J me ab clickable IST timestamp jayega
           ]);
         }
         logStep("SUCCESS_EMAIL", jobsArray.length + " jobs extracted.");
