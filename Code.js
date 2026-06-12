@@ -41,8 +41,6 @@ function processLinkedInJobsWithGemini() {
   var apiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
   if (!apiKey) return;
 
-  // FIX: Kal ki date nikal kar strictly 'after:YYYY/MM/DD' query bana rahe hain
-  // Isse sirf kal raat 12 baje ke baad aaye hue unread mails hi filter honge
   var afterDateStr = getYesterdayFormattedDate();
   var searchQuery = 'label:linkdin-jobs is:unread after:' + afterDateStr;
   console.log("=== Running Query: " + searchQuery);
@@ -52,7 +50,6 @@ function processLinkedInJobsWithGemini() {
 
   if (threads.length === 0) {
     logStep("QUEUE_FINISHED", "Aaj ke saare pending unread emails process ho chuke hain.");
-    console.log("=== Queue Empty: Aaj ka koi naya unread mail nahi mila ===");
     return; 
   }
   
@@ -74,7 +71,7 @@ function processLinkedInJobsWithGemini() {
                  "5. 'workplaceType' (Remote, Hybrid, Onsite, or N/A)\n" +
                  "6. 'employmentType' (Full-time, Part-time, Contract, Internship, or N/A)\n" +
                  "7. 'experienceLevel' (Entry level, Associate, Mid-Senior, Director, or N/A)\n" +
-                 "8. 'keySkills' (A short list of 3-4 key technical or mandatory skills required for this role)\n" +
+                 "8. 'keySkills' (Provide a single plain text string of 3-4 key skills separated by commas, NOT an array list)\n" +
                  "9. 'summary' (A brief 1-2 sentence description or summary of the role)\n\n" +
                  "Return the result ONLY as a valid JSON array of objects. Do not wrap in markdown blocks. HTML Content:\n" + emailBodyHtml;
     
@@ -94,10 +91,28 @@ function processLinkedInJobsWithGemini() {
           var jobTitleValue = job.jobTitle || "View Job";
           var cellFormula = job.jobUrl ? '=HYPERLINK("' + job.jobUrl + '", "' + jobTitleValue.replace(/"/g, '""') + '")' : jobTitleValue;
           
+          // FIX LOGIC: Agar Gemini ne skills ko Array/List format me diya hai, toh use comma separated text banao
+          var cleanSkills = "";
+          if (job.keySkills) {
+            if (Array.isArray(job.keySkills)) {
+              cleanSkills = job.keySkills.join(", ");
+            } else {
+              cleanSkills = String(job.keySkills);
+            }
+          } else {
+            cleanSkills = "N/A";
+          }
+          
           dataSheet.appendRow([
-            mailDate, cellFormula, job.company || "N/A", job.location || "N/A",
-            job.workplaceType || "N/A", job.employmentType || "N/A", job.experienceLevel || "N/A",
-            job.keySkills || "N/A", job.summary || "N/A"
+            mailDate, 
+            cellFormula, 
+            job.company || "N/A", 
+            job.location || "N/A",
+            job.workplaceType || "N/A", 
+            job.employmentType || "N/A", 
+            job.experienceLevel || "N/A",
+            cleanSkills, // Ab yahan normal text string jayegi
+            job.summary || "N/A"
           ]);
         }
         logStep("SUCCESS_EMAIL", jobsArray.length + " jobs extracted.");
@@ -107,7 +122,6 @@ function processLinkedInJobsWithGemini() {
     }
   }
 
-  // Pure thread ko read mark karein
   targetThread.markRead();
 
   // Next Hook Check
@@ -184,10 +198,9 @@ function logStep(tag, message) {
   } catch(e) { console.error(e.toString()); }
 }
 
-// Kal ki date YYYY/MM/DD format me generate karne ka function
 function getYesterdayFormattedDate() {
   var today = new Date();
-  today.setDate(today.getDate() - 1); // 1 din pehle (Yesterday)
+  today.setDate(today.getDate() - 1); 
   var yyyy = today.getFullYear();
   var mm = String(today.getMonth() + 1).padStart(2, '0');
   var dd = String(today.getDate()).padStart(2, '0');
