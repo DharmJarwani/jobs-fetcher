@@ -29,13 +29,14 @@ function processLinkedInJobsWithGemini() {
   try { ss = SpreadsheetApp.openById(SPREADSHEET_ID); } catch(err) { return; }
   var dataSheet = ss.getSheetByName(DATA_SHEET_NAME) || ss.getSheets()[0];
   
+  // Naya Column J (Gmail Source) add kiya headers me
   if (dataSheet.getLastRow() === 0) {
     dataSheet.appendRow([
       "Timestamp", "Job Title (Clickable)", "Company", "Location", 
       "Workplace Type (Remote/Hybrid)", "Employment Type", "Experience Level", 
-      "Key Skills Required", "Job Description Summary"
+      "Key Skills Required", "Job Description Summary", "Gmail Source"
     ]);
-    dataSheet.getRange("A1:I1").setFontWeight("bold").setBackground("#e6effa");
+    dataSheet.getRange("A1:J1").setFontWeight("bold").setBackground("#e6effa");
   }
   
   var apiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
@@ -63,6 +64,11 @@ function processLinkedInJobsWithGemini() {
     var mailDate = message.getDate();
     var emailBodyHtml = message.getBody(); 
     
+    // GMAIL DEEP-LINK LOGIC: Isse har ek individual email thread ka direct web link banega
+    var threadId = targetThread.getId();
+    var gmailLinkUrl = "https://mail.google.com/mail/u/0/#inbox/" + threadId;
+    var gmailFormula = '=HYPERLINK("' + gmailLinkUrl + '", "Open Email ✉️")';
+
     var prompt = "Extract all job openings listed in this LinkedIn HTML email. For each job, extract the following fields:\n" +
                  "1. 'jobTitle'\n" +
                  "2. 'company'\n" +
@@ -91,7 +97,6 @@ function processLinkedInJobsWithGemini() {
           var jobTitleValue = job.jobTitle || "View Job";
           var cellFormula = job.jobUrl ? '=HYPERLINK("' + job.jobUrl + '", "' + jobTitleValue.replace(/"/g, '""') + '")' : jobTitleValue;
           
-          // FIX LOGIC: Agar Gemini ne skills ko Array/List format me diya hai, toh use comma separated text banao
           var cleanSkills = "";
           if (job.keySkills) {
             if (Array.isArray(job.keySkills)) {
@@ -103,6 +108,7 @@ function processLinkedInJobsWithGemini() {
             cleanSkills = "N/A";
           }
           
+          // Column J me gmailFormula append ho raha hai
           dataSheet.appendRow([
             mailDate, 
             cellFormula, 
@@ -111,8 +117,9 @@ function processLinkedInJobsWithGemini() {
             job.workplaceType || "N/A", 
             job.employmentType || "N/A", 
             job.experienceLevel || "N/A",
-            cleanSkills, // Ab yahan normal text string jayegi
-            job.summary || "N/A"
+            cleanSkills, 
+            job.summary || "N/A",
+            gmailFormula // New Column J data
           ]);
         }
         logStep("SUCCESS_EMAIL", jobsArray.length + " jobs extracted.");
